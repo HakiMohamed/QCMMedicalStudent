@@ -1,0 +1,258 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String         @id @default(uuid())
+  email            String         @unique
+  passwordHash     String
+  firstName        String
+  lastName         String
+  role             UserRole       @default(STUDENT)
+  studentId        String?        @unique
+  accessType       AccessType     @default(TRIAL)
+  accessExpiryDate DateTime?
+  imageUrl         String?
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
+  academicYearId   String?
+  answers          UserAnswer[]
+  progress         UserProgress[]
+  academicYear     AcademicYear?  @relation(fields: [academicYearId], references: [id])
+
+  @@index([email])
+  @@index([studentId])
+  @@index([role])
+  @@map("users")
+}
+
+model AcademicYear {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  order     Int        @unique
+  imageUrl  String?
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  semesters Semester[]
+  users     User[]
+
+  @@map("academic_years")
+}
+
+model Semester {
+  id             String       @id @default(uuid())
+  code           String       @unique
+  name           String
+  order          Int
+  academicYearId String
+  imageUrl       String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  modules        Module[]
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  @@index([academicYearId])
+  @@index([code])
+  @@map("semesters")
+}
+
+model Module {
+  id          String    @id @default(uuid())
+  name        String
+  code        String?
+  description String?
+  semesterId  String
+  imageUrl    String?
+  order       Int
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  semester    Semester  @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  parts       Part[]
+
+  @@index([semesterId])
+  @@index([code])
+  @@map("modules")
+}
+
+model Part {
+  id          String    @id @default(uuid())
+  name        String
+  code        String?
+  description String?
+  moduleId    String
+  imageUrl    String?
+  order       Int
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  chapters    Chapter[]
+  module      Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@index([moduleId])
+  @@map("parts")
+}
+
+model Chapter {
+  id          String         @id @default(uuid())
+  title       String
+  code        String?
+  description String?
+  partId      String
+  imageUrl    String?
+  order       Int
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+  part        Part           @relation(fields: [partId], references: [id], onDelete: Cascade)
+  sessions    Session[]
+  progress    UserProgress[]
+
+  @@index([partId])
+  @@map("chapters")
+}
+
+model Session {
+  id        String      @id @default(uuid())
+  type      SessionType
+  year      Int
+  chapterId String
+  imageUrl  String?
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  questions Question[]
+  chapter   Chapter     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([type, year, chapterId])
+  @@index([chapterId])
+  @@index([year])
+  @@map("sessions")
+}
+
+model Question {
+  id             String          @id @default(uuid())
+  text           String
+  type           QuestionType    @default(SINGLE_CHOICE)
+  order          Int
+  sessionId      String
+  explanation    String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  choices        Choice[]
+  correctAnswers CorrectAnswer[]
+  session        Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userAnswers    UserAnswer[]
+
+  @@index([sessionId])
+  @@map("questions")
+}
+
+model Choice {
+  id             String          @id @default(uuid())
+  label          String
+  text           String
+  questionId     String
+  order          Int
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  question       Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  correctAnswers CorrectAnswer[]
+  userAnswers    UserAnswer[]
+
+  @@unique([questionId, label])
+  @@index([questionId])
+  @@map("choices")
+}
+
+model CorrectAnswer {
+  id         String   @id @default(uuid())
+  questionId String
+  choiceId   String
+  createdAt  DateTime @default(now())
+  choice     Choice   @relation(fields: [choiceId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, choiceId])
+  @@index([questionId])
+  @@map("correct_answers")
+}
+
+model UserProgress {
+  id                String    @id @default(uuid())
+  userId            String
+  chapterId         String
+  totalQuestions    Int       @default(0)
+  answeredQuestions Int       @default(0)
+  correctAnswers    Int       @default(0)
+  wrongAnswers      Int       @default(0)
+  score             Float     @default(0)
+  level             String    @default("Débutant")
+  percentage        Float     @default(0)
+  lastAccessedAt    DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  chapter           Chapter   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@index([userId])
+  @@index([chapterId])
+  @@map("user_progress")
+}
+
+model UserAnswer {
+  id         String   @id @default(uuid())
+  userId     String
+  questionId String
+  choiceId   String
+  isCorrect  Boolean
+  answeredAt DateTime @default(now())
+  choice     Choice   @relation(fields: [choiceId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId, choiceId])
+  @@index([userId])
+  @@index([questionId])
+  @@index([answeredAt])
+  @@map("user_answers")
+}
+
+enum UserRole {
+  STUDENT
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AccessType {
+  TRIAL
+  PAID
+  INACTIVE
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+}
+
+enum SessionType {
+  NORMAL
+  RATTRAPAGE
+}
