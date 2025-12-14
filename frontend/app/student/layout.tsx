@@ -34,6 +34,7 @@ import {
   ExpandLess,
   ExpandMore,
   Assignment as TestIcon,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import apiClient from '@/lib/api';
 import { useStudentNavigation, StudentNavigationProvider } from '@/lib/contexts/StudentNavigationContext';
@@ -212,6 +213,37 @@ function StudentLayoutContent({
               <ProgressIcon />
             </ListItemIcon>
             <ListItemText primary="Ma Progression" />
+          </ListItemButton>
+        </ListItem>
+        <ListItem disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            selected={pathname === '/student/unlock-requests'}
+            onClick={() => {
+              router.push('/student/unlock-requests');
+              if (isMobile) setMobileOpen(false);
+            }}
+            sx={{
+              mx: 1,
+              borderRadius: 1,
+              '&.Mui-selected': {
+                backgroundColor: '#ff6b35',
+                color: 'white',
+                '&:hover': {
+                  backgroundColor: '#e55a2b',
+                },
+                '& .MuiListItemIcon-root': {
+                  color: 'white',
+                },
+              },
+              '&:hover': {
+                backgroundColor: 'rgba(255, 107, 53, 0.1)',
+              },
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <HistoryIcon />
+            </ListItemIcon>
+            <ListItemText primary="Mes Demandes" />
           </ListItemButton>
         </ListItem>
       </List>

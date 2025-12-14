@@ -36,6 +36,8 @@ import {
   Logout,
   Settings,
   LocalLibrary,
+  LockOpen as LockOpenIcon,
+  AccountBalance as BankIcon,
 } from '@mui/icons-material';
 import apiClient from '@/lib/api';
 
@@ -125,6 +127,8 @@ export default function DashboardLayout({
     { text: 'Chapitres', icon: <ChapterIcon />, path: '/dashboard/chapters', roles: ['ADMIN', 'SUPER_ADMIN'] },
     { text: 'Sessions', icon: <SessionIcon />, path: '/dashboard/sessions', roles: ['ADMIN', 'SUPER_ADMIN'] },
     { text: 'Questions', icon: <QuizIcon />, path: '/dashboard/questions', roles: ['ADMIN', 'SUPER_ADMIN'] },
+    { text: 'Demandes de déverrouillage', icon: <LockOpenIcon />, path: '/dashboard/unlock-requests', roles: ['ADMIN', 'SUPER_ADMIN'] },
+    { text: 'Modes de paiement', icon: <BankIcon />, path: '/dashboard/payment-methods', roles: ['ADMIN', 'SUPER_ADMIN'] },
   ];
 
   const filteredMenuItems = menuItems.filter((item) =>

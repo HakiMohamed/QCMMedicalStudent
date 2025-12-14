@@ -7,6 +7,8 @@ import { AcademicModule } from './academic/academic.module';
 import { QuestionsModule } from './questions/questions.module';
 import { ProgressModule } from './progress/progress.module';
 import { AdminModule } from './admin/admin.module';
+import { AccessModule } from './access/access.module';
+import { PaymentModule } from './payment/payment.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -22,6 +24,8 @@ import { AppController } from './app.controller';
     QuestionsModule,
     ProgressModule,
     AdminModule,
+    AccessModule,
+    PaymentModule,
   ],
   controllers: [AppController],
 })

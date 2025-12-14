@@ -27,12 +27,35 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
+    // Trouver l'année académique et le semestre si fournis
+    let academicYearId: string | undefined;
+    let semesterId: string | undefined;
+
+    if (registerDto.academicYear && registerDto.semesterCode) {
+      const academicYear = await this.prisma.academicYear.findFirst({
+        where: { name: registerDto.academicYear, isActive: true },
+      });
+
+      if (academicYear) {
+        academicYearId = academicYear.id;
+        const semester = await this.prisma.semester.findUnique({
+          where: { code: registerDto.semesterCode },
+        });
+        if (semester && semester.academicYearId === academicYear.id) {
+          semesterId = semester.id;
+        }
+      }
+    }
+
     const user = await this.prisma.user.create({
       data: {
         email: registerDto.email,
         passwordHash: hashedPassword,
         firstName: registerDto.firstName,
         lastName: registerDto.lastName,
+        academicYearId,
+        accessType: 'TRIAL',
+        accessExpiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 jours
       },
       select: {
         id: true,
@@ -42,6 +65,23 @@ export class AuthService {
         role: true,
       },
     });
+
+    // Créer un accès gratuit de 7 jours pour le semestre choisi
+    if (semesterId) {
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 7); // 7 jours à partir d'aujourd'hui
+
+      await this.prisma.semesterAccess.create({
+        data: {
+          userId: user.id,
+          semesterId,
+          accessType: 'TRIAL',
+          startDate: new Date(),
+          expiryDate,
+          isActive: true,
+        },
+      });
+    }
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);
 

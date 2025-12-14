@@ -8,24 +8,26 @@ datasource db {
 }
 
 model User {
-  id               String         @id @default(uuid())
-  email            String         @unique
+  id               String           @id @default(uuid())
+  email            String           @unique
   passwordHash     String
   firstName        String
   lastName         String
-  role             UserRole       @default(STUDENT)
-  studentId        String?        @unique
-  accessType       AccessType     @default(TRIAL)
+  role             UserRole         @default(STUDENT)
+  studentId        String?          @unique
+  accessType       AccessType       @default(TRIAL)
   accessExpiryDate DateTime?
   imageUrl         String?
-  isActive         Boolean        @default(true)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
   deletedAt        DateTime?
   academicYearId   String?
   answers          UserAnswer[]
   progress         UserProgress[]
-  academicYear     AcademicYear?  @relation(fields: [academicYearId], references: [id])
+  academicYear     AcademicYear?    @relation(fields: [academicYearId], references: [id])
+  semesterAccesses SemesterAccess[]
+  unlockRequests   UnlockRequest[]
 
   @@index([email])
   @@index([studentId])
@@ -48,17 +50,19 @@ model AcademicYear {
 }
 
 model Semester {
-  id             String       @id @default(uuid())
-  code           String       @unique
-  name           String
-  order          Int
-  academicYearId String
-  imageUrl       String?
-  isActive       Boolean      @default(true)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  modules        Module[]
-  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  id               String           @id @default(uuid())
+  code             String           @unique
+  name             String
+  order            Int
+  academicYearId   String
+  imageUrl         String?
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  modules          Module[]
+  academicYear     AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  semesterAccesses SemesterAccess[]
+  unlockRequests   UnlockRequest[]
 
   @@index([academicYearId])
   @@index([code])
@@ -255,4 +259,67 @@ enum QuestionType {
 enum SessionType {
   NORMAL
   RATTRAPAGE
+}
+
+model SemesterAccess {
+  id         String     @id @default(uuid())
+  userId     String
+  semesterId String
+  accessType AccessType @default(TRIAL)
+  startDate  DateTime   @default(now())
+  expiryDate DateTime?
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  semester   Semester   @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, semesterId])
+  @@index([userId])
+  @@index([semesterId])
+  @@index([expiryDate])
+  @@map("semester_accesses")
+}
+
+model UnlockRequest {
+  id           String              @id @default(uuid())
+  userId       String
+  semesterId   String
+  paymentProof String
+  status       UnlockRequestStatus @default(PENDING)
+  adminNotes   String?
+  processedAt  DateTime?
+  processedBy  String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  semester     Semester            @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([semesterId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("unlock_requests")
+}
+
+enum UnlockRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model PaymentMethod {
+  id          String    @id @default(uuid())
+  name        String
+  logo        String?
+  rib         String
+  qrCode      String?
+  isActive    Boolean   @default(true)
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([order])
+  @@map("payment_methods")
 }

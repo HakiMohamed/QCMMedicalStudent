@@ -32,6 +32,8 @@ import {
   ArrowBack as ArrowBackIcon,
   Home as HomeIcon,
   Info as InfoIcon,
+  Lock as LockIcon,
+  LockOpen as LockOpenIcon,
 } from '@mui/icons-material';
 import apiClient from '@/lib/api';
 import EntityImage from '@/lib/components/EntityImage';
@@ -107,6 +109,13 @@ export default function StudentPage() {
   const [parts, setParts] = useState<Part[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [semesterAccessStatus, setSemesterAccessStatus] = useState<Record<string, { 
+    hasAccess: boolean; 
+    isActive: boolean; 
+    isExpired: boolean;
+    accessType?: string;
+    expiryDate?: string | null;
+  }>>({});
 
   const [navState, setNavState] = useState<NavigationState>({
     level: 'academicYear',
@@ -119,13 +128,56 @@ export default function StudentPage() {
 
   useEffect(() => {
     fetchAcademicYears();
+    fetchSemesterAccessStatus();
+    fetchAllSemesters();
   }, []);
 
-  useEffect(() => {
-    if (navState.selectedAcademicYear) {
-      fetchSemesters(navState.selectedAcademicYear.id);
+  const fetchSemesterAccessStatus = async () => {
+    try {
+      const response = await apiClient.get('/access/semesters');
+      const semestersWithStatus = response.data;
+      const statusMap: Record<string, { 
+        hasAccess: boolean; 
+        isActive: boolean; 
+        isExpired: boolean;
+        accessType?: string;
+        expiryDate?: string | null;
+      }> = {};
+      semestersWithStatus.forEach((s: any) => {
+        statusMap[s.id] = {
+          hasAccess: s.hasAccess,
+          isActive: s.isActive,
+          isExpired: s.isExpired,
+          accessType: s.accessType,
+          expiryDate: s.expiryDate,
+        };
+      });
+      setSemesterAccessStatus(statusMap);
+    } catch (err) {
+      console.error('Erreur lors du chargement des statuts d\'accès:', err);
     }
-  }, [navState.selectedAcademicYear]);
+  };
+
+  const calculateDaysRemaining = (expiryDate: string | null | undefined): number | null => {
+    if (!expiryDate) return null;
+    const now = new Date();
+    const expiry = new Date(expiryDate);
+    const diffTime = expiry.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  };
+
+  const fetchAllSemesters = async () => {
+    try {
+      const response = await apiClient.get('/semesters', {
+        params: { page: 1, limit: 1000 },
+      });
+      const data = response.data.data || response.data;
+      setSemesters(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      console.error('Erreur lors du chargement des semestres:', err);
+    }
+  };
 
   useEffect(() => {
     if (navState.selectedSemester) {
@@ -247,6 +299,13 @@ export default function StudentPage() {
   };
 
   const handleSelectSemester = (semester: Semester) => {
+    const accessStatus = semesterAccessStatus[semester.id];
+    if (!accessStatus || !accessStatus.isActive) {
+      // Rediriger vers la page de paiement
+      router.push(`/student/payment?semesterId=${semester.id}`);
+      return;
+    }
+
     setNavState({
       ...navState,
       level: 'module',
@@ -418,46 +477,118 @@ export default function StudentPage() {
           <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>
             Sélectionnez une année académique
           </Typography>
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: {
-                xs: '1fr',
-                sm: 'repeat(2, 1fr)',
-                md: 'repeat(3, 1fr)',
-              },
-              gap: 2,
-            }}
-          >
-            {academicYears.map((year) => (
-              <Card
-                key={year.id}
-                sx={{
-                  transition: 'all 0.3s',
-                  '&:hover': {
-                    transform: 'translateY(-8px)',
-                    boxShadow: 6,
-                  },
-                }}
-              >
-                <CardActionArea
-                  onClick={() => handleSelectAcademicYear(year)}
-                  sx={{ p: 3, height: '100%' }}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {academicYears.map((year) => {
+              const yearSemesters = semesters.filter((s) => s.academicYearId === year.id);
+              return (
+                <Card
+                  key={year.id}
+                  sx={{
+                    transition: 'all 0.3s',
+                    '&:hover': {
+                      boxShadow: 4,
+                    },
+                  }}
                 >
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
                       <CalendarIcon sx={{ fontSize: 40, color: '#ff6b35' }} />
                       <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
                         {year.name}
                       </Typography>
                     </Box>
-                    <Typography variant="body2" color="textSecondary">
-                      Cliquez pour voir les semestres
-                    </Typography>
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: {
+                          xs: '1fr',
+                          sm: 'repeat(2, 1fr)',
+                          md: 'repeat(3, 1fr)',
+                        },
+                        gap: 2,
+                      }}
+                    >
+                      {yearSemesters.map((semester) => {
+                        const accessStatus = semesterAccessStatus[semester.id];
+                        const isLocked = !accessStatus || !accessStatus.isActive;
+                        const isTrial = accessStatus?.accessType === 'TRIAL';
+                        const daysRemaining = calculateDaysRemaining(accessStatus?.expiryDate);
+                        return (
+                          <Card
+                            key={semester.id}
+                            sx={{
+                              transition: 'all 0.3s',
+                              opacity: isLocked ? 0.7 : 1,
+                              border: isLocked ? '1px solid #e0e0e0' : isTrial ? '1px solid #ff9800' : '1px solid #4caf50',
+                              '&:hover': {
+                                transform: 'translateY(-4px)',
+                                boxShadow: 3,
+                              },
+                            }}
+                          >
+                            <CardActionArea
+                              onClick={() => handleSelectSemester(semester)}
+                              sx={{ p: 2, height: '100%' }}
+                            >
+                              <CardContent>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    {isLocked ? (
+                                      <LockIcon sx={{ color: '#9e9e9e', fontSize: 24 }} />
+                                    ) : (
+                                      <LockOpenIcon sx={{ color: isTrial ? '#ff9800' : '#4caf50', fontSize: 24 }} />
+                                    )}
+                                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                      {semester.name}
+                                    </Typography>
+                                  </Box>
+                                  {isTrial && !isLocked && (
+                                    <Chip
+                                      label="Essai gratuit"
+                                      color="warning"
+                                      size="small"
+                                      sx={{
+                                        backgroundColor: '#fff3e0',
+                                        color: '#e65100',
+                                        fontWeight: 'bold',
+                                      }}
+                                    />
+                                  )}
+                                  {isTrial && !isLocked && daysRemaining !== null && daysRemaining > 0 && (
+                                    <Typography variant="caption" color="textSecondary" sx={{ textAlign: 'center' }}>
+                                      {daysRemaining === 1 
+                                        ? '1 jour restant' 
+                                        : `${daysRemaining} jours restants`}
+                                    </Typography>
+                                  )}
+                                  {isTrial && !isLocked && daysRemaining !== null && daysRemaining === 0 && (
+                                    <Typography variant="caption" color="error" sx={{ textAlign: 'center', fontWeight: 'bold' }}>
+                                      Essai expiré
+                                    </Typography>
+                                  )}
+                                  {!isTrial && (
+                                    <Chip
+                                      icon={isLocked ? <LockIcon /> : <LockOpenIcon />}
+                                      label={isLocked ? 'Verrouillé' : 'Déverrouillé'}
+                                      color={isLocked ? 'default' : 'success'}
+                                      size="small"
+                                      sx={{
+                                        backgroundColor: isLocked ? '#f5f5f5' : '#e8f5e9',
+                                        color: isLocked ? '#757575' : '#2e7d32',
+                                      }}
+                                    />
+                                  )}
+                                </Box>
+                              </CardContent>
+                            </CardActionArea>
+                          </Card>
+                        );
+                      })}
+                    </Box>
                   </CardContent>
-                </CardActionArea>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </Box>
         </Box>
       );
@@ -480,23 +611,31 @@ export default function StudentPage() {
               gap: 2,
             }}
           >
-            {semesters.map((semester) => (
-              <Card
-                key={semester.id}
-                sx={{
-                  transition: 'all 0.3s',
-                  '&:hover': {
-                    transform: 'translateY(-8px)',
-                    boxShadow: 6,
-                  },
-                }}
-              >
-                <CardActionArea
-                  onClick={() => handleSelectSemester(semester)}
-                  sx={{ p: 3, height: '100%' }}
+            {semesters.map((semester) => {
+              const accessStatus = semesterAccessStatus[semester.id];
+              const isLocked = !accessStatus || !accessStatus.isActive;
+              const isTrial = accessStatus?.accessType === 'TRIAL';
+              const daysRemaining = calculateDaysRemaining(accessStatus?.expiryDate);
+              
+              return (
+                <Card
+                  key={semester.id}
+                  sx={{
+                    transition: 'all 0.3s',
+                    opacity: isLocked ? 0.7 : 1,
+                    border: isLocked ? '1px solid #e0e0e0' : isTrial ? '1px solid #ff9800' : '1px solid #4caf50',
+                    '&:hover': {
+                      transform: 'translateY(-8px)',
+                      boxShadow: 6,
+                    },
+                  }}
                 >
-                  <CardContent>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, mb: 2 }}>
+                  <CardActionArea
+                    onClick={() => handleSelectSemester(semester)}
+                    sx={{ p: 3, height: '100%' }}
+                  >
+                    <CardContent>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, mb: 2 }}>
                       <EntityImage
                         imageUrl={semester.imageUrl}
                         name={semester.name}
@@ -504,19 +643,65 @@ export default function StudentPage() {
                         size={120}
                         fontSize={40}
                       />
-                      <Box sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                          {semester.code}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          {semester.name}
-                        </Typography>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                            {semester.name}
+                          </Typography>
+                          {isTrial && !isLocked && (
+                            <>
+                              <Chip
+                                label="Essai gratuit"
+                                color="warning"
+                                size="small"
+                                sx={{ 
+                                  mt: 1,
+                                  backgroundColor: '#fff3e0',
+                                  color: '#e65100',
+                                  fontWeight: 'bold',
+                                }}
+                              />
+                              {daysRemaining !== null && daysRemaining > 0 && (
+                                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.5 }}>
+                                  {daysRemaining === 1 
+                                    ? '1 jour restant' 
+                                    : `${daysRemaining} jours restants`}
+                                </Typography>
+                              )}
+                              {daysRemaining !== null && daysRemaining === 0 && (
+                                <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5, fontWeight: 'bold' }}>
+                                  Essai expiré
+                                </Typography>
+                              )}
+                            </>
+                          )}
+                          {!isTrial && (
+                            <>
+                              {isLocked ? (
+                                <Chip
+                                  icon={<LockIcon />}
+                                  label="Verrouillé"
+                                  color="default"
+                                  size="small"
+                                  sx={{ mt: 1 }}
+                                />
+                              ) : (
+                                <Chip
+                                  icon={<LockOpenIcon />}
+                                  label="Déverrouillé"
+                                  color="success"
+                                  size="small"
+                                  sx={{ mt: 1 }}
+                                />
+                              )}
+                            </>
+                          )}
+                        </Box>
                       </Box>
-                    </Box>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            ))}
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              );
+            })}
           </Box>
         </Box>
       );
